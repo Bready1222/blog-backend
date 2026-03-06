@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: blog-backend
+
+  # --- 新增数据库配置开始 ---
+  datasource:
+    # 修改点：使用 ${变量名:默认值} 格式
+    # DB_HOST: Docker启动时会设为 'db'，本地运行默认为 'localhost'
+    # DB_NAME: 默认为 'blog' (和你原来的一样)
+    # DB_USER/DB_PASS: 默认为 'root' / '123456' (和你原来的一样)
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/${DB_NAME:blog_db}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf-8
+    username: ${DB_USER:root}
+    password: ${DB_PASS:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update  # 自动根据实体类创建/更新表结构，开发神器
+    show-sql: true      # 控制台打印SQL，方便调试
+    properties:
+      hibernate:
+        format_sql: true # 格式化输出的SQL，更易读
+# --- 新增数据库配置结束 ---
