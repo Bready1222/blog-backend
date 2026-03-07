@@ -8,9 +8,6 @@ pipeline {
 		IMAGE_NAME = "blog-backend"
 		DOCKER_IMAGE = "${REGISTRY_URL}/${PROJECT_NAME}/${IMAGE_NAME}"
 		DOCKER_TAG = "${BUILD_NUMBER}"
-
-		// Maven 镜像版本
-		MAVEN_IMAGE = "maven:3.8-eclipse-temurin-17"
 	}
 
 	stages {
@@ -22,43 +19,20 @@ pipeline {
 			}
 		}
 
-		// 🔧【修改重点】这里不再使用 Groovy 变量拼接路径，而是全用 Shell 动态执行
-		stage('🔍 查案：到底发生了什么') {
-			steps {
-				script {
-					echo "📍 准备检查 Docker 挂载情况..."
-
-					// 【修正】直接使用三引号，让 Shell 自己去执行 $(pwd)
-					// 这样 Docker 客户端接收到的就是动态解析后的路径，通常能解决 DinD 挂载问题
-					sh '''
-                        echo "📂 Jenkins 环境下的文件列表:"
-                        ls -la
-
-                        echo "🐳 测试 Docker 挂载后的文件列表 (使用 $(pwd)):"
-                        docker run --rm -v $(pwd):/test-check maven:3.8-eclipse-temurin-17 ls -la /test-check
-
-                        echo "🔎 验证 pom.xml 是否存在:"
-                        if docker run --rm -v $(pwd):/test-check maven:3.8-eclipse-temurin-17 test -f /test-check/pom.xml; then
-                            echo "✅ 成功！Docker 容器内看到了 pom.xml"
-                        else
-                            echo "❌ 失败！Docker 容器内依然是空的"
-                            echo "   当前 Shell pwd 是: $(pwd)"
-                            exit 1
-                        fi
-                    '''
-				}
-			}
-		}
-
-		// 2. 编译代码
+		// 2. 编译代码 (直接使用 Jenkins 环境中的 Maven)
 		stage('Compile with Maven') {
 			steps {
-				echo '🔨 Step 2: Compiling Java code...'
-				// 这里的写法是正确的，保留即可
-				sh '''
-                    echo "当前目录: $(pwd)"
-                    docker run --rm -v $(pwd):/app maven:3.8-eclipse-temurin-17 mvn clean package -DskipTests
-                '''
+				echo '🔨 Step 2: Compiling Java code (Native)...'
+
+				// 先检查环境，确保 mvn 可用
+				sh 'mvn -version'
+
+				// 执行编译
+				// 不需要 docker run，直接在当前容器运行，文件直接生成在 workspace 中
+				sh 'mvn clean package -DskipTests'
+
+				// 验证产物
+				sh 'ls -la target/*.jar'
 			}
 		}
 
@@ -66,6 +40,7 @@ pipeline {
 		stage('Build Docker Image') {
 			steps {
 				echo '🐳 Step 3: Building Docker image...'
+				// 此时 target 目录下已经有 jar 包了，直接构建
 				sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
 			}
 		}
@@ -91,13 +66,16 @@ pipeline {
 	post {
 		always {
 			echo '🧹 Cleaning up local images...'
+			// 清理构建产生的镜像，节省空间
 			sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
 		}
 		failure {
-			echo '❌ Build failed! Check console output.'
+			echo '❌ Build failed! Check console output for details.'
+			// 可选：发送通知邮件或钉钉消息
 		}
 		success {
 			echo '✅ Build successful! Image pushed to Harbor.'
+			echo "Image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
 		}
 	}
 }
