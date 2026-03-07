@@ -2,17 +2,14 @@ pipeline {
 	agent any
 
 	environment {
-		// --- 配置区域 (请确认这些和你之前的一致) ---
 		REGISTRY_URL = "192.168.23.128:80"
 		PROJECT_NAME = "library"
 		IMAGE_NAME = "blog-backend"
 		DOCKER_IMAGE = "${REGISTRY_URL}/${PROJECT_NAME}/${IMAGE_NAME}"
 		DOCKER_TAG = "${BUILD_NUMBER}"
 
-		// Maven 版本配置
 		MAVEN_VERSION = "3.9.6"
 		MAVEN_HOME = "/tmp/apache-maven-${MAVEN_VERSION}"
-		// ------------------------------------------
 	}
 
 	stages {
@@ -23,34 +20,55 @@ pipeline {
 			}
 		}
 
-		stage('2. 准备环境 (自动安装 Maven)') {
+		stage('2. 准备环境 (强制检查并安装 Maven)') {
 			steps {
 				script {
-					echo '🔍 检查 Java 和 Maven...'
+					echo '🔍 强制检查 Maven 环境...'
 					sh '''
-                        # 1. 显示 Java 版本
-                        java -version
+                        # 定义 Maven 路径
+                        MAVEN_BIN="${MAVEN_HOME}/bin/mvn"
 
-                        # 2. 检查 Maven 是否存在
-                        if command -v mvn &> /dev/null; then
-                            echo "✅ Maven 已存在，跳过下载。"
-                            mvn -version
+                        # 策略：先检查自定义路径是否存在且可用，如果不行，再检查全局 mvn
+                        # 这样避免 command -v 的误判
+
+                        if [ -x "$MAVEN_BIN" ]; then
+                            echo "✅ 发现已下载的 Maven (位于 $MAVEN_HOME)，直接使用。"
+                            $MAVEN_BIN -version
+                        elif command -v mvn >/dev/null 2>&1; then
+                            # 双重确认：不仅 command -v 要找到，还要能运行
+                            if mvn -version >/dev/null 2>&1; then
+                                echo "✅ 发现系统安装的 Maven，直接使用。"
+                                mvn -version
+                            else
+                                echo "⚠️ 检测到 mvn 命令但运行失败，将重新下载。"
+                                FORCE_INSTALL=true
+                            fi
                         else
-                            echo "⚠️ 未检测到 Maven，正在下载并配置..."
+                            echo "⚠️ 未检测到 Maven，开始下载安装..."
+                            FORCE_INSTALL=true
+                        fi
 
-                            # 下载 Maven (使用 Apache 官方源，如果慢可换阿里云)
-                            # 如果下载失败，请告诉我，我帮你换阿里云镜像
+                        # 如果需要安装 (FORCE_INSTALL 被设置)
+                        if [ "$FORCE_INSTALL" = true ] || [ ! -x "$MAVEN_BIN" ]; then
+                            echo "🚀 正在下载 Apache Maven ${MAVEN_VERSION} ..."
+
+                            # 清理旧文件以防万一
+                            rm -rf ${MAVEN_HOME} /tmp/maven.tar.gz
+
+                            # 下载 (如果官方源慢，取消下面注释使用阿里云源)
+                            # curl -fsSL https://maven.aliyun.com/repository/public/org/apache/maven/apache-maven/${MAVEN_VERSION}/apache-maven-${MAVEN_VERSION}-bin.tar.gz -o /tmp/maven.tar.gz
                             curl -fsSL https://dlcdn.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz -o /tmp/maven.tar.gz
 
-                            # 解压到 /tmp
+                            echo "📦 正在解压..."
                             tar -xzf /tmp/maven.tar.gz -C /tmp/
 
-                            # 验证解压结果
-                            if [ -d "${MAVEN_HOME}" ]; then
-                                echo "✅ Maven 下载并解压成功！"
-                                ${MAVEN_HOME}/bin/mvn -version
+                            # 最终验证
+                            if [ -x "$MAVEN_BIN" ]; then
+                                echo "✅ Maven 安装成功！"
+                                $MAVEN_BIN -version
                             else
-                                echo "❌ Maven 解压失败，目录不存在：${MAVEN_HOME}"
+                                echo "❌ Maven 安装失败，无法找到可执行文件。"
+                                ls -la /tmp/apache-maven*/bin/ || true
                                 exit 1
                             fi
                         fi
@@ -63,24 +81,25 @@ pipeline {
 			steps {
 				echo '🔨 开始编译 Java 项目...'
 				sh '''
-                    # 关键：确保当前 shell 能用到刚才下载的 Maven
-                    # 如果上一步下载了，这里必须指定路径；如果原本就有，直接用 mvn 也行
-                    MVN_CMD="mvn"
-                    if [ ! -command -v mvn &> /dev/null ]; then
-                        MVN_CMD="${MAVEN_HOME}/bin/mvn"
-                    fi
+                    # 确定使用的 mvn 命令路径
+                    MAVEN_CMD="mvn"
+                    MAVEN_BIN="${MAVEN_HOME}/bin/mvn"
 
-                    # 执行编译 (跳过测试以加快速度，如需测试去掉 -DskipTests)
-                    $MVN_CMD clean package -DskipTests
-
-                    # 检查 jar 包是否生成
-                    if ls target/*.jar >/dev/null 2>&1; then
-                        echo "✅ 编译成功！生成的 Jar 包："
-                        ls -lh target/*.jar
+                    # 优先使用我们下载的 Maven，因为它肯定在
+                    if [ -x "$MAVEN_BIN" ]; then
+                        MAVEN_CMD="$MAVEN_BIN"
+                        echo "使用指定路径的 Maven: $MAVEN_CMD"
                     else
-                        echo "❌ 编译失败：未找到 target/*.jar"
-                        exit 1
+                        #  fallback 到系统 mvn (虽然理论上不会走到这，因为上一步保证了)
+                        echo "使用系统 Maven: $MAVEN_CMD"
                     fi
+
+                    # 执行编译
+                    $MAVEN_CMD clean package -DskipTests
+
+                    # 验证产物
+                    echo "📂 检查构建产物..."
+                    ls -lh target/*.jar
                 '''
 			}
 		}
@@ -95,20 +114,14 @@ pipeline {
 		stage('5. 推送镜像到 Harbor') {
 			steps {
 				echo '📤 推送镜像到私有仓库...'
-				// 确保你已经在 Jenkins 凭据里配置了 'harbor-cred'
 				withCredentials([usernamePassword(
 					credentialsId: 'harbor-cred',
 					usernameVariable: 'HARBOR_USER',
 					passwordVariable: 'HARBOR_PASS'
 				)]) {
 					sh """
-                        echo "正在登录 Harbor..."
                         echo \${HARBOR_PASS} | docker login ${REGISTRY_URL} -u \${HARBOR_USER} --password-stdin
-
-                        echo "正在推送镜像..."
                         docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-
-                        echo "✅ 推送完成！"
                     """
 				}
 			}
@@ -118,16 +131,14 @@ pipeline {
 	post {
 		always {
 			echo '🧹 清理临时文件...'
-			// 清理下载的 Maven 压缩包，节省空间
 			sh 'rm -f /tmp/maven.tar.gz || true'
-			// 可选：清理本地构建的镜像，防止磁盘爆满
 			sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
 		}
 		success {
-			echo '🎉 恭喜！构建全流程成功！'
+			echo '🎉 构建成功！'
 		}
 		failure {
-			echo '💥 构建失败，请检查上方日志。'
+			echo '💥 构建失败。'
 		}
 	}
 }
