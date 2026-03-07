@@ -59,13 +59,10 @@ pipeline {
 					// 使用 Docker 运行 Maven，避免在 Jenkins 宿主机安装 Java/Maven
 					// -v $WORKSPACE:/app : 将当前工作区挂载到容器内，这样生成的 jar 包会留在宿主机上供下一步使用
 					// -w /app : 设置工作目录
-					sh """
-                        docker run --rm \
-                            -v $WORKSPACE:/app \
-                            -w /app \
-                            ${MAVEN_IMAGE} \
-                            mvn clean package -DskipTests
-                    """
+					sh '''
+                    echo "当前目录: $(pwd)"
+                    docker run --rm -v $(pwd):/app maven:3.8-eclipse-temurin-17 mvn clean package -DskipTests
+                '''
 				}
 			}
 		}
