@@ -3,13 +3,10 @@ pipeline {
 
 	environment {
 		REGISTRY_URL = "192.168.23.128:80"
-		PROJECT_NAME = "library"
+		PROJECT_NAME = "blog-backend"
 		IMAGE_NAME = "blog-backend"
-		// 组合镜像名：192.168.23.128:80/library/blog-backend
 		DOCKER_IMAGE = "${REGISTRY_URL}/${PROJECT_NAME}/${IMAGE_NAME}"
 		DOCKER_TAG = "${BUILD_NUMBER}"
-
-		// ❌ 删除了 MAVEN_VERSION 和 MAVEN_HOME，因为镜像里已经有了
 	}
 
 	stages {
