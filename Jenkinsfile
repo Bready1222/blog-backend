@@ -21,7 +21,36 @@ pipeline {
 				checkout scm
 			}
 		}
+		stage('🔍 查案：到底发生了什么') {
+			steps {
+				script {
+					// 1. 打印当前 Jenkins 工作区在哪里
+					def workDir = sh(script: 'pwd', returnStdout: true).trim()
+					echo "📍 Jenkins 当前工作区绝对路径: ${workDir}"
 
+					// 2. 【关键】在启动 Docker 之前，先在 Jenkins 环境里列出文件
+					echo "📂 Jenkins 环境下的文件列表:"
+					sh "ls -la ${workDir}"
+
+					// 3. 【关键】尝试启动一个临时容器，只为了列出文件，不运行 Maven
+					echo "🐳 测试 Docker 挂载后的文件列表:"
+					sh """
+                docker run --rm -v ${workDir}:/test-check maven:3.8-eclipse-temurin-17 ls -la /test-check
+            """
+
+					// 如果上面一步列出的文件里没有 pom.xml，那就实锤是挂载问题或拉取问题了
+					sh """
+                if docker run --rm -v ${workDir}:/test-check maven:3.8-eclipse-temurin-17 test -f /test-check/pom.xml; then
+                    echo "✅ 确认：Docker 容器内能看到 pom.xml"
+                else
+                    echo "❌ 致命发现：Docker 容器内看不到 pom.xml！"
+                    echo "   这说明要么代码没拉下来，要么 Docker 挂载路径错了。"
+                    exit 1
+                fi
+            """
+				}
+			}
+		}
 		// 👇👇👇 【新增】关键步骤：执行 Maven 打包 👇👇👇
 		stage('Compile with Maven') {
 			steps {
