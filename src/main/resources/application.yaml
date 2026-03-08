@@ -8,7 +8,7 @@ spring:
     # DB_HOST: Docker启动时会设为 'db'，本地运行默认为 'localhost'
     # DB_NAME: 默认为 'blog' (和你原来的一样)
     # DB_USER/DB_PASS: 默认为 'root' / '123456' (和你原来的一样)
-    url: jdbc:mysql://${DB_HOST:localhost}:3306/${DB_NAME:blog_db}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf-8
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/${DB_NAME:blog_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf-8
     username: ${DB_USER:root}
     password: ${DB_PASS:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
