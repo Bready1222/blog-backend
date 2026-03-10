@@ -11,7 +11,7 @@ pipeline {
 		DOCKER_TAG = "1.0.${BUILD_NUMBER}"
 
 		// --- Git 自动更新配置 ---
-		GIT_REPO_URL = "https://github.com/Bready1222/blog-backend.git"
+		GIT_REPO_URL = "github.com/Bready1222/blog-backend.git"
 		GIT_BRANCH = "master"
 		// ⚠️ 请确保 Jenkins 凭证管理中有一个 ID 为 'git-credentials-id' 的凭证 (Username/Password)
 		GIT_CREDENTIALS_ID = "git-credentials-id"
