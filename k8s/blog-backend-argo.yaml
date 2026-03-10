@@ -9,6 +9,7 @@ metadata:
     argocd-image-updater.argoproj.io/backend.update-strategy: semver
     argocd-image-updater.argoproj.io/write-back-method: git
     argocd-image-updater.argoproj.io/git-repository: github:https://github.com/Bready1222/blog-backend.git
+    argocd-image-updater.argoproj.io/write-back-target: kustomization:./k8s/kustomization.yaml
 
 spec:
   project: default
