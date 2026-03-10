@@ -11,9 +11,10 @@ pipeline {
 		DOCKER_TAG = "1.0.${BUILD_NUMBER}"
 
 		// --- Git 自动更新配置 ---
-		GIT_REPO_URL = "github.com/Bready1222/blog-backend.git"
+		GIT_REPO_URL = "https://github.com/Bready1222/blog-backend.git"
 		GIT_BRANCH = "master"
 		// ⚠️ 请确保 Jenkins 凭证管理中有一个 ID 为 'git-credentials-id' 的凭证 (Username/Password)
+		// Username: GitHub 用户名 | Password: GitHub PAT (带 repo 权限)
 		GIT_CREDENTIALS_ID = "git-credentials-id"
 
 		// Git 提交信息
@@ -92,7 +93,12 @@ pipeline {
                             git config user.name "${GIT_USER_NAME}"
                             git config user.email "${GIT_USER_EMAIL}"
 
-                            # 2. 显示替换前的内容
+                            # 2. 解决 detached HEAD 问题：切换到目标分支并拉取最新代码
+                            echo "🔄 切换到 ${GIT_BRANCH} 分支并拉取最新代码..."
+                            git checkout -B ${GIT_BRANCH}
+                            git pull origin ${GIT_BRANCH} --rebase
+
+                            # 3. 显示替换前的内容
                             echo "🔍 原文件内容:"
                             if grep "image:" ${K8S_FILE_PATH}; then
                                 echo "✅ 找到 image 字段"
@@ -101,21 +107,21 @@ pipeline {
                                 exit 1
                             fi
 
-                            # 3. 执行替换 (使用 | 分隔符避免 URL 中的 / 干扰)
+                            # 4. 执行替换 (使用 | 分隔符避免 URL 中的 / 干扰)
                             echo "🔄 执行替换：将镜像 Tag 更新为 ${DOCKER_TAG}"
                             sed -i "s|image: ${DOCKER_IMAGE}:.*|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g" ${K8S_FILE_PATH}
 
-                            # 4. 显示替换后的内容
+                            # 5. 显示替换后的内容
                             echo "✅ 新文件内容:"
                             grep "image:" ${K8S_FILE_PATH}
 
-                            # 5. 检查是否有实际变动
+                            # 6. 检查是否有实际变动
                             if [ -n "\$(git status --porcelain ${K8S_FILE_PATH})" ]; then
                                 echo "📤 检测到文件变更，准备提交..."
 
-                                # 构造带凭证的 URL (用于 push)
-                                # 处理 https:// 开头，插入 user:pass@
-                                CREDENTIALIZED_URL=\$(echo "${GIT_REPO_URL}" | sed 's|https://|https://\${GIT_USER}:\${GIT_PASS}@|')
+                                # 直接构造带凭证的 URL（避免 sed 拼接的格式问题）
+                                CREDENTIALIZED_URL="https://\${GIT_USER}:\${GIT_PASS}@github.com/Bready1222/blog-backend.git"
+                                echo "🔍 推送 URL: \${CREDENTIALIZED_URL}"
 
                                 git add ${K8S_FILE_PATH}
                                 git commit -m "chore: auto-update image to ${DOCKER_TAG} [skip ci]"
@@ -143,16 +149,14 @@ pipeline {
 	post {
 		always {
 			echo '🧹 清理工作空间...'
-			// ✅ 修改点：使用原生 deleteDir() 替代需要插件的 cleanWs()
-			// 这会删除当前 workspace 下的所有文件，达到清理目的
+			// ✅ 使用原生 deleteDir() 替代需要插件的 cleanWs()
 			deleteDir()
 		}
 		success {
-			echo '🎉 全流程构建部署成功！镜像版本：${DOCKER_TAG}'
+			echo "🎉 全流程构建部署成功！镜像版本：${DOCKER_TAG}"
 		}
 		failure {
 			echo '💥 构建失败，请检查上方日志定位问题。'
-			// 即使失败也清理一下，防止脏数据影响下次构建
 			deleteDir()
 		}
 	}
