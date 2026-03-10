@@ -6,7 +6,7 @@ metadata:
   annotations:
     # 👇 这是让 argocd-image-updater 工作的关键配置
     argocd-image-updater.argoproj.io/image-list: backend=192.168.23.128:80/blog-backend/blog-backend
-    argocd-image-updater.argoproj.io/backend.update-strategy: semver
+    argocd-image-updater.argoproj.io/update-strategy: semver
     argocd-image-updater.argoproj.io/write-back-method: git
     argocd-image-updater.argoproj.io/git-repository: github:https://github.com/Bready1222/blog-backend.git
 
