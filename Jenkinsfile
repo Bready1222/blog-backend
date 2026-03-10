@@ -6,7 +6,7 @@ pipeline {
 		PROJECT_NAME = "blog-backend"
 		IMAGE_NAME = "blog-backend"
 		DOCKER_IMAGE = "${REGISTRY_URL}/${PROJECT_NAME}/${IMAGE_NAME}"
-		DOCKER_TAG = "1.0"
+		DOCKER_TAG = "1.0.${BUILD_NUMBER}"
 	}
 
 	stages {
