@@ -4,13 +4,17 @@ metadata:
   name: blog-backend
   namespace: argocd
   annotations:
-    # 👇 这是让 argocd-image-updater 工作的关键配置
     argocd-image-updater.argoproj.io/image-list: backend=192.168.23.128/blog-backend/blog-backend
     argocd-image-updater.argoproj.io/backend.update-strategy: semver
+    argocd-image-updater.argoproj.io/backend.semver.range: 1.0.x
     argocd-image-updater.argoproj.io/write-back-method: git
     argocd-image-updater.argoproj.io/git-repository: github:https://github.com/Bready1222/blog-backend.git
     argocd-image-updater.argoproj.io/write-back-target: kustomization:k8s/kustomization.yaml
     argocd-image-updater.argoproj.io/backend.kustomize.image-name: 192.168.23.128/blog-backend/blog-backend
+    # （如果Harbor需要认证）关联Harbor的拉取密钥
+    argocd-image-updater.argoproj.io/backend.pull-secret: pullsecret:argocd/harbor-creds
+    # （如果GitHub需要认证）关联Git的推送密钥
+    argocd-image-updater.argoproj.io/git.ssh-secret: argocd/git-creds
 
 spec:
   project: default
@@ -18,7 +22,7 @@ spec:
     repoURL: https://github.com/Bready1222/blog-backend.git
     path: k8s
     targetRevision: master
-    kustomize: {}   # <--- 加上这一行，就这三个字符
+    kustomize: {}   # 保留这行，启用Kustomize渲染
   destination:
     server: https://kubernetes.default.svc
     namespace: blog

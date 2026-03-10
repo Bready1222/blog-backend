@@ -1,13 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
-# 这里写你目录下所有的 yaml 文件名
 resources:
   - blog-backend-deploy.yaml
-  # 如果有 service 文件，也加在这里，比如：
-  # - blog-backend-svc.yaml
-
-# 【核心】这里管理镜像版本，Updater 只会改 newTag 后面的数字
 images:
   - name: 192.168.23.128/blog-backend/blog-backend
-    newTag: "1.0"
+    newTag: "1.0.0"  # 初始值，Updater会自动替换为最新的1.0.x版本
