@@ -7,25 +7,53 @@ pipeline {
 		PROJECT_NAME = "blog-backend"
 		IMAGE_NAME = "blog-backend"
 		DOCKER_IMAGE = "${REGISTRY_URL}/${PROJECT_NAME}/${IMAGE_NAME}"
-		// 使用 BUILD_NUMBER 作为版本号，每次构建自动递增
+		// 使用 BUILD_NUMBER 作为版本号
 		DOCKER_TAG = "1.0.${BUILD_NUMBER}"
 
 		// --- Git 自动更新配置 ---
 		GIT_REPO_URL = "https://github.com/Bready1222/blog-backend.git"
 		GIT_BRANCH = "master"
-		// ⚠️ 请确保 Jenkins 凭证管理中有一个 ID 为 'git-credentials-id' 的凭证 (Username/Password)
-		// Username: GitHub 用户名 | Password: GitHub PAT (带 repo 权限)
 		GIT_CREDENTIALS_ID = "git-credentials-id"
 
-		// Git 提交信息
+		// ⚠️ 关键配置：Jenkins 专用的身份标识
+		// 必须与下面 stage 中 git config 设置的 email 一致
 		GIT_USER_NAME = "Jenkins Bot"
 		GIT_USER_EMAIL = "jenkins@local.com"
 
-		// K8s 文件相对路径 (相对于项目根目录)
+		// 定义用于识别“自家提交”的特殊标记
+		GIT_COMMIT_SKIP_FLAG = "[skip-ci-loop]"
+
+		// K8s 文件相对路径
 		K8S_FILE_PATH = "k8s/blog-backend-deploy.yaml"
 	}
 
 	stages {
+		stage('0. 检查是否为由 Jenkins 触发的循环构建') {
+			steps {
+				script {
+					echo '🔍 正在检查上一次提交来源，防止死循环...'
+
+					// 获取最后一次提交的作者邮箱
+					def lastAuthor = sh(script: 'git log -1 --pretty=format:"%ae"', returnStdout: true).trim()
+					// 获取最后一次提交的信息
+					def lastMessage = sh(script: 'git log -1 --pretty=format:"%s"', returnStdout: true).trim()
+
+					echo "📝 检测到最新提交作者: ${lastAuthor}"
+					echo "📝 检测到最新提交信息: ${lastMessage}"
+
+					// 【核心逻辑】如果是 Jenkins 自己提交的，直接终止
+					if (lastAuthor == env.GIT_USER_EMAIL || lastMessage.contains(env.GIT_COMMIT_SKIP_FLAG)) {
+						echo "⚠️ 检测到当前构建是由 Jenkins 自己的 Push 触发的！"
+						echo "🛑 为避免死循环，本次构建将直接跳过。"
+						currentBuild.result = 'SUCCESS' // 标记为成功，避免发送失败通知
+						return // 终止整个 Pipeline
+					} else {
+						echo "✅ 确认为人工提交或第三方触发，继续执行构建流程。"
+					}
+				}
+			}
+		}
+
 		stage('1. 拉取代码') {
 			steps {
 				echo '📥 正在从 Git 拉取代码...'
@@ -60,7 +88,7 @@ pipeline {
 			steps {
 				echo '📤 推送镜像到私有仓库...'
 				withCredentials([usernamePassword(
-					credentialsId: 'harbor-cred', // ⚠️ 确保此凭证 ID 存在
+					credentialsId: 'harbor-cred',
 					usernameVariable: 'HARBOR_USER',
 					passwordVariable: 'HARBOR_PASS'
 				)]) {
@@ -89,55 +117,40 @@ pipeline {
 						passwordVariable: 'GIT_PASS'
 					)]) {
 						sh """
-                            # 1. 配置 Git 用户信息
+                            # 1. 配置 Git 用户信息 (必须与环境变量一致，以便下次被识别)
                             git config user.name "${GIT_USER_NAME}"
                             git config user.email "${GIT_USER_EMAIL}"
 
-                            # 2. 解决 detached HEAD 问题：切换到目标分支并拉取最新代码
+                            # 2. 解决 detached HEAD 问题
                             echo "🔄 切换到 ${GIT_BRANCH} 分支并拉取最新代码..."
                             git checkout -B ${GIT_BRANCH}
                             git pull origin ${GIT_BRANCH} --rebase
 
-                            # 3. 显示替换前的内容
-                            echo "🔍 原文件内容:"
-                            if grep "image:" ${K8S_FILE_PATH}; then
-                                echo "✅ 找到 image 字段"
-                            else
-                                echo "❌ 错误：未在 ${K8S_FILE_PATH} 中找到 image 字段"
-                                exit 1
-                            fi
-
-                            # 4. 执行替换 (使用 | 分隔符避免 URL 中的 / 干扰)
+                            # 3. 执行替换
                             echo "🔄 执行替换：将镜像 Tag 更新为 ${DOCKER_TAG}"
                             sed -i "s|image: ${DOCKER_IMAGE}:.*|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g" ${K8S_FILE_PATH}
 
-                            # 5. 显示替换后的内容
-                            echo "✅ 新文件内容:"
-                            grep "image:" ${K8S_FILE_PATH}
-
-                            # 6. 检查是否有实际变动
+                            # 4. 检查是否有实际变动
                             if [ -n "\$(git status --porcelain ${K8S_FILE_PATH})" ]; then
                                 echo "📤 检测到文件变更，准备提交..."
 
-                                # 直接构造带凭证的 URL（避免 sed 拼接的格式问题）
                                 CREDENTIALIZED_URL="https://\${GIT_USER}:\${GIT_PASS}@github.com/Bready1222/blog-backend.git"
-                                echo "🔍 推送 URL: \${CREDENTIALIZED_URL}"
 
                                 git add ${K8S_FILE_PATH}
-                                git commit -m "chore: auto-update image to ${DOCKER_TAG} [skip ci]"
+
+                                # ⚠️ 关键：提交信息中包含特殊标记，供下一次构建识别
+                                git commit -m "chore: auto-update image to ${DOCKER_TAG} ${GIT_COMMIT_SKIP_FLAG}"
 
                                 echo "🚀 推送到远程分支 ${GIT_BRANCH}..."
-                                # 如果推送失败，尝试拉取后再推 (防止并发冲突)
                                 git push \${CREDENTIALIZED_URL} HEAD:${GIT_BRANCH} || {
                                     echo "⚠️ 推送失败，尝试先 pull 再 push..."
                                     git pull \${CREDENTIALIZED_URL} ${GIT_BRANCH} --no-edit
                                     git push \${CREDENTIALIZED_URL} HEAD:${GIT_BRANCH}
                                 }
 
-                                echo "🎉 Git 更新成功！ArgoCD 即将检测到变更并自动同步。"
+                                echo "🎉 Git 更新成功！ArgoCD 即将检测到变更。"
                             else
-                                echo "⚠️ 文件内容无变化 (可能是 Tag 重复)，跳过 Git 提交。"
-                                echo "💡 提示：如果 ArgoCD 未更新，请检查部署配置是否强制拉取最新镜像。"
+                                echo "⚠️ 文件内容无变化，跳过 Git 提交。"
                             fi
                         """
 					}
@@ -149,7 +162,6 @@ pipeline {
 	post {
 		always {
 			echo '🧹 清理工作空间...'
-			// ✅ 使用原生 deleteDir() 替代需要插件的 cleanWs()
 			deleteDir()
 		}
 		success {
