@@ -27,7 +27,7 @@ spec:
         
         env:
         - name: SPRING_DATASOURCE_URL
-          value: "jdbc:mysql://192.168.31.156:3306/blog_db?useSSL=false&serverTimezone=UTC"
+          value: "jdbc:mysql://192.168.31.156:3306/blog_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
         - name: SPRING_DATASOURCE_USERNAME
           value: "root"
         - name: SPRING_DATASOURCE_PASSWORD
