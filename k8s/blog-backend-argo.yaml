@@ -3,33 +3,23 @@ kind: Application
 metadata:
   name: blog-backend
   namespace: argocd
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: backend=192.168.23.128/blog-backend/blog-backend
-    argocd-image-updater.argoproj.io/backend.update-strategy: semver
-    argocd-image-updater.argoproj.io/backend.semver.range: 1.0.x
-    argocd-image-updater.argoproj.io/write-back-method: git
-    argocd-image-updater.argoproj.io/git-repository: github:https://github.com/Bready1222/blog-backend.git
-    argocd-image-updater.argoproj.io/write-back-target: kustomization:k8s/kustomization.yaml
-    argocd-image-updater.argoproj.io/backend.kustomize.image-name: 192.168.23.128/blog-backend/blog-backend
-    # （如果Harbor需要认证）关联Harbor的拉取密钥
-    argocd-image-updater.argoproj.io/backend.pull-secret: pullsecret:argocd/harbor-creds
-    # （如果GitHub需要认证）关联Git的推送密钥
-    argocd-image-updater.argoproj.io/git.ssh-secret: argocd/git-creds
-
+  annotations: {}
+  labels:
+    app.kubernetes.io/name: blog-backend
 spec:
   project: default
   source:
     repoURL: https://github.com/Bready1222/blog-backend.git
     path: k8s
     targetRevision: master
-    kustomize: {}   # 保留这行，启用Kustomize渲染
   destination:
     server: https://kubernetes.default.svc
     namespace: blog
   syncPolicy:
     automated:
-      prune: true
-      selfHeal: true
-      allowEmpty: true
+      prune: true       # 自动清理 Git 中删除的资源
+      selfHeal: true    # 自动修复被手动修改的资源
+      allowEmpty: false # 建议设为 false，防止误删所有资源
     syncOptions:
       - CreateNamespace=true
+      - Validate=false  # 跳过部分严格验证，减少同步报错

@@ -20,7 +20,7 @@ spec:
       
       containers:
       - name: backend
-        image: 192.168.23.128/blog-backend/blog-backend
+        image: 192.168.23.128:80/blog-backend/blog-backend
         
         ports:
         - containerPort: 8080
