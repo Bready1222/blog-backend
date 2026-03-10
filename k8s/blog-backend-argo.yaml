@@ -16,6 +16,7 @@ spec:
     repoURL: https://github.com/Bready1222/blog-backend.git
     path: k8s
     targetRevision: master
+    kustomize: {}   # <--- 加上这一行，就这三个字符
   destination:
     server: https://kubernetes.default.svc
     namespace: blog
