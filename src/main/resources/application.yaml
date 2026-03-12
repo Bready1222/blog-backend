@@ -21,3 +21,19 @@ spring:
       hibernate:
         format_sql: true # 格式化输出的SQL，更易读
 # --- 新增数据库配置结束 ---
+# --- ✅ 新增：Prometheus 监控配置开始 ---
+management:
+  endpoints:
+    web:
+      exposure:
+        # 关键：必须显式包含 prometheus，否则访问 /actuator/prometheus 会报 404
+        include: health,info,prometheus
+  endpoint:
+    health:
+      # 显示详细的健康检查信息（如数据库连接状态）
+      show-details: always
+  metrics:
+    tags:
+      # 给所有指标打上应用名称标签，方便在 Grafana 中区分不同服务
+      application: ${spring.application.name}
+# --- ✅ 新增：Prometheus 监控配置结束 ---
