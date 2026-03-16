@@ -20,7 +20,7 @@
 *   **镜像仓库**: `Harbor` (私有仓库，提供镜像存储与漏洞扫描)
 *   **持续部署 (CD)**: `Argo CD` (基于 GitOps 理念，监听 Git 变更自动同步集群状态)
 *   **监控告警**: `Prometheus` + `Grafana` + `Alertmanager` (采集指标、可视化大屏、钉钉消息推送)
-*   **应用示例**: `Spring Boot` + `Vue3` + `MySQL` (前后端分离微服务架构)
+*   **应用框架**: `Spring Boot` + `Maven` + `Vue3` (前后端分离微服务架构)
 
 ---
 
@@ -45,12 +45,17 @@
 
 ---
 
-## 📂 目录结构
+## 📂 项目目录结构（真实结构）
 
 ```text
 .
-├── ci/                  # Jenkins 流水线脚本 (Jenkinsfile)
-├── k8s/                 # Kubernetes 资源定义 (Deployment, Service, Ingress)
-├── monitoring/          # 监控栈配置 (Prometheus Rules, Grafana Dashboards)
-├── app/                 # 示例应用源码 (Spring Boot + Vue)
-└── README.md            # 项目说明文档
+├── .mvn/                 # Maven 包装器配置
+├── k8s/                  # Kubernetes 资源定义 (Deployment, Service, Ingress)
+├── src/                  # Spring Boot 应用源码
+├── .gitattributes        # Git 属性配置
+├── .gitignore            # Git 忽略规则
+├── Dockerfile            # 容器化构建指令
+├── Jenkinsfile           # Jenkins 流水线脚本
+├── mvnw                  # Maven Wrapper for Linux/Mac
+├── mvnw.cmd              # Maven Wrapper for Windows
+└── pom.xml               # Maven 项目依赖管理
